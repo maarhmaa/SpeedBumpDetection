@@ -1,0 +1,8 @@
+python=3.8
+numpy
+matplotlib
+jupyter
+tensorflow=12.2
+keras
+cudatoolkit=11.8
+cudnn=8.6
