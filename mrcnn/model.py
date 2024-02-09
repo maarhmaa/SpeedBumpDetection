@@ -2258,10 +2258,9 @@ class MaskRCNN(object):
 
         # If we have a model path with date and epochs use them
         if model_path:
-            # Continue from we left of. Get epoch and date from the file name
+            # Continue from where we left off. Get epoch and date from the file name
             # A sample model path might look like:
-            # \path\to\logs\coco20171029T2315\mask_rcnn_coco_0001.h5 (Windows)
-            # /path/to/logs/coco20171029T2315/mask_rcnn_coco_0001.h5 (Linux)
+            # /path/to/logs/coco20171029T2315/mask_rcnn_coco_0001.h5
             regex = r".*[/\\][\w-]+(\d{4})(\d{2})(\d{2})T(\d{2})(\d{2})[/\\]mask\_rcnn\_[\w-]+(\d{4})\.h5"
             # Use string for regex since we might want to use pathlib.Path as model_path
             m = re.match(regex, str(model_path))
@@ -2277,11 +2276,10 @@ class MaskRCNN(object):
         self.log_dir = os.path.join(self.model_dir, "{}{:%Y%m%dT%H%M}".format(
             self.config.NAME.lower(), now))
 
-        # Path to save after each epoch. Include placeholders that get filled by Keras.
-        self.checkpoint_path = os.path.join(self.log_dir, "mask_rcnn_{}_*epoch*.h5".format(
-            self.config.NAME.lower()))
-        self.checkpoint_path = self.checkpoint_path.replace(
-            "*epoch*", "{epoch:04d}")
+        # Path to save after the training is complete
+        self.checkpoint_path = os.path.join(self.log_dir, "mask_rcnn_{}_{epoch:04d}.h5".format(
+            self.config.NAME.lower(), epoch=self.epoch))
+
 
     def train(self, train_dataset, val_dataset, learning_rate, epochs, layers,
               augmentation=None, custom_callbacks=None, no_augmentation_sources=None):
