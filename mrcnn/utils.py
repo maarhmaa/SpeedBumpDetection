@@ -7,6 +7,9 @@ Licensed under the MIT License (see LICENSE for details)
 Written by Waleed Abdulla
 """
 
+from __future__ import absolute_import
+from __future__ import division
+from __future__ import print_function
 import sys
 import os
 import logging
@@ -32,6 +35,7 @@ import seaborn as sn
 from sklearn.metrics import confusion_matrix
 from pandas import DataFrame
 from string import ascii_uppercase
+
 
 # URL from which to download the latest COCO trained weights
 COCO_MODEL_URL = "https://github.com/matterport/Mask_RCNN/releases/download/v2.0/mask_rcnn_coco.h5"
@@ -386,7 +390,7 @@ class Dataset(object):
         image_info = self.image_info[image_id]
         if image_info["source"] != "speedbump":
             return super(self.__class__, self).load_mask(image_id)
-
+        
         # Convert polygons to a bitmap mask of shape
         # [height, width, instance_count]
         info = self.image_info[image_id]
