@@ -1027,8 +1027,8 @@ def gt_pred_lists(gt_class_ids, gt_bboxes, pred_class_ids, pred_bboxes, iou_tres
                 #change the state of the gt and predicted class when an overlapping is found
                 gt_class_ids_['state'][i] = 1
                 pred_class_ids_['state'][j] = 1
-                #gt.append(gt_class)
-                #pred.append(pred_class)
+                gt.append(gt_class)
+                pred.append(pred_class)
                 
                 #chack if the overlapping objects are from the same class
                 if (gt_class == pred_class):
