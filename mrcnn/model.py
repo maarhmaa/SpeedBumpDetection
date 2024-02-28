@@ -1240,8 +1240,13 @@ def load_image_gt(dataset, config, image_id, augmentation=None):
     """
     # Load image and mask
     image = dataset.load_image(image_id)
-    mask, class_ids = dataset.load_mask(image_id)
+    mask_result = dataset.load_mask(image_id)
+    mask = mask_result[0]  # Access the mask from the return value
+    class_ids = mask_result[1]  # Access the class_ids from the return value
+
+    # Now you can proceed to use mask and class_ids
     original_shape = image.shape
+
     image, window, scale, padding, crop = utils.resize_image(
         image,
         min_dim=config.IMAGE_MIN_DIM,
