@@ -31,7 +31,7 @@ class Config(object):
     # handle 2 images of 1024x1024px.
     # Adjust based on your GPU memory and image sizes. Use the highest
     # number that your GPU can handle for best performance.
-    IMAGES_PER_GPU = 1
+    IMAGES_PER_GPU = 2
 
     # Number of training steps per epoch
     # This doesn't need to match the size of the training set. Tensorboard
@@ -57,7 +57,7 @@ class Config(object):
     # Only useful if you supply a callable to BACKBONE. Should compute
     # the shape of each layer of the FPN Pyramid.
     # See model.compute_backbone_shapes
-    COMPUTE_BACKBONE_SHAPE = None
+    COMPUTE_BACKBONE_SHAPE = 64
 
     # The strides of each layer of the FPN Pyramid. These values
     # are based on a Resnet101 backbone.
@@ -147,7 +147,7 @@ class Config(object):
     # enough positive proposals to fill this and keep a positive:negative
     # ratio of 1:3. You can increase the number of proposals by adjusting
     # the RPN NMS threshold.
-    TRAIN_ROIS_PER_IMAGE = 100 # pas training 100, testing 20
+    TRAIN_ROIS_PER_IMAGE = 20 # pas training 100, testing 20
 
     # Percent of positive ROIs used to train classifier/mask heads
     ROI_POSITIVE_RATIO = 0.33
@@ -174,7 +174,8 @@ class Config(object):
     DETECTION_MIN_CONFIDENCE = 0.7
 
     # Non-maximum suppression threshold for detection
-    DETECTION_NMS_THRESHOLD = 0.3
+    # default value 0.3
+    DETECTION_NMS_THRESHOLD = 0.5
 
     # Learning rate and momentum
     # The Mask RCNN paper uses lr=0.02, but on TensorFlow it causes
