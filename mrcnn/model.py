@@ -67,7 +67,7 @@ class BatchNorm(KL.BatchNormalization):
     so this layer is often frozen (via setting in Config class) and functions
     as linear layer.
     """
-    def call(self, inputs, training=None):
+    def call(self, inputs, training=False):
         """
         Note about training values:
             None: Train BN layers. This is the normal mode
@@ -896,7 +896,7 @@ def rpn_graph(feature_map, anchors_per_location, anchor_stride):
     # Softmax on last dimension of BG/FG.
     # Ubah jadi sigmoid jika kelas object yang akan dideteksi hanya berjumlah 2
     rpn_probs = KL.Activation(
-        "softmax", name="rpn_class_xxx")(rpn_class_logits)
+        "sigmoid", name="rpn_class_xxx")(rpn_class_logits)
 
     # Bounding box refinement. [batch, H, W, anchors per location * depth]
     # where depth is [x, y, log(w), log(h)]
@@ -977,7 +977,7 @@ def fpn_classifier_graph(rois, feature_maps, image_meta,
     # Classifier head
     mrcnn_class_logits = KL.TimeDistributed(KL.Dense(num_classes),
                                             name='mrcnn_class_logits')(shared)
-    mrcnn_probs = KL.TimeDistributed(KL.Activation("softmax"),
+    mrcnn_probs = KL.TimeDistributed(KL.Activation("sigmoid"),
                                      name="mrcnn_class")(mrcnn_class_logits)
 
     # BBox head
@@ -1059,14 +1059,14 @@ def smooth_l1_loss(y_true, y_pred):
     loss = (less_than_one * 0.5 * diff**2) + (1 - less_than_one) * (diff - 0.5)
     return loss
 
-
-def rpn_class_loss_graph(rpn_match, rpn_class_logits):
-    """RPN anchor classifier loss.
+# Jika menggunakan softmax
+"""def rpn_class_loss_graph(rpn_match, rpn_class_logits):
+    '''RPN anchor classifier loss.
 
     rpn_match: [batch, anchors, 1]. Anchor match type. 1=positive,
                -1=negative, 0=neutral anchor.
     rpn_class_logits: [batch, anchors, 2]. RPN classifier logits for BG/FG.
-    """
+    '''
     # Squeeze last dim to simplify
     rpn_match = tf.squeeze(rpn_match, -1)
     # Get anchor classes. Convert the -1/+1 match to 0/1 values.
@@ -1082,6 +1082,36 @@ def rpn_class_loss_graph(rpn_match, rpn_class_logits):
                                              output=rpn_class_logits,
                                              from_logits=True)
     loss = K.switch(tf.size(input=loss) > 0, K.mean(loss), tf.constant(0.0))
+    return loss
+"""
+
+# Jika menggunakan sigmoid
+def rpn_class_loss_graph(rpn_match, rpn_class_logits):
+    """RPN anchor classifier loss.
+
+    rpn_match: [batch, anchors, 1]. Anchor match type. 1=positive,
+               -1=negative, 0=neutral anchor.
+    rpn_class_logits: [batch, anchors, 2]. RPN classifier logits for BG/FG.
+    """
+    # Squeeze last dim to simplify
+    rpn_match = tf.squeeze(rpn_match, -1)
+    # Get anchor classes. Convert the -1/+1 match to 0/1 values.
+    anchor_class = K.cast(K.equal(rpn_match, 1), tf.float32)
+    # Positive and Negative anchors contribute to the loss,
+    # but neutral anchors (match value = 0) don't.
+    indices = tf.where(tf.not_equal(rpn_match, 0))
+    # Pick rows that contribute to the loss and filter out the rest.
+    rpn_class_logits = tf.gather_nd(rpn_class_logits, indices)
+    anchor_class = tf.gather_nd(anchor_class, indices)
+    # Reshape anchor_class to match the shape of rpn_class_logits
+    anchor_class = tf.expand_dims(anchor_class, axis=-1)
+    # Since you have only one class, keep only the logit for the foreground class
+    rpn_class_logits = rpn_class_logits[:, :, 1]
+    # Reshape rpn_class_logits to match the shape of anchor_class
+    rpn_class_logits = tf.expand_dims(rpn_class_logits, axis=-1)
+    # Sigmoid Cross entropy loss
+    loss = tf.nn.sigmoid_cross_entropy_with_logits(labels=anchor_class, logits=rpn_class_logits)
+    loss = K.switch(tf.size(loss) > 0, K.mean(loss), tf.constant(0.0))
     return loss
 
 
@@ -1113,10 +1143,10 @@ def rpn_bbox_loss_graph(config, target_bbox, rpn_match, rpn_bbox):
     loss = K.switch(tf.size(input=loss) > 0, K.mean(loss), tf.constant(0.0))
     return loss
 
-# Jika activatiob layer berupa softmax
-def mrcnn_class_loss_graph(target_class_ids, pred_class_logits,
+# Jika activation layer berupa softmax
+"""def mrcnn_class_loss_graph(target_class_ids, pred_class_logits,
                            active_class_ids):
-    """Loss for the classifier head of Mask RCNN.
+    '''Loss for the classifier head of Mask RCNN.
 
     target_class_ids: [batch, num_rois]. Integer class IDs. Uses zero
         padding to fill in the array.
@@ -1124,7 +1154,7 @@ def mrcnn_class_loss_graph(target_class_ids, pred_class_logits,
     active_class_ids: [batch, num_classes]. Has a value of 1 for
         classes that are in the dataset of the image, and 0
         for classes that are not in the dataset.
-    """
+    '''
     # During model building, Keras calls this function with
     # target_class_ids of type float32. Unclear why. Cast it
     # to int to get around it.
@@ -1148,10 +1178,9 @@ def mrcnn_class_loss_graph(target_class_ids, pred_class_logits,
     # to the loss to get a correct mean.
     loss = tf.reduce_sum(input_tensor=loss) / tf.reduce_sum(input_tensor=pred_active)
     return loss
+"""
 
 # Jika activation layer berupa sigmoid
-"""import tensorflow as tf
-
 def mrcnn_class_loss_graph(target_class_ids, pred_class_logits, active_class_ids):
     '''Loss for the classifier head of Mask RCNN.
 
@@ -1185,16 +1214,16 @@ def mrcnn_class_loss_graph(target_class_ids, pred_class_logits, active_class_ids
     # to the loss to get a correct mean.
     loss = tf.reduce_sum(loss) / tf.reduce_sum(pred_active)
     return loss
-"""
+
 
 # Jika activation layer menggunakan softmax
-def mrcnn_bbox_loss_graph(target_bbox, target_class_ids, pred_bbox):
-    """Loss for Mask R-CNN bounding box refinement.
+"""def mrcnn_bbox_loss_graph(target_bbox, target_class_ids, pred_bbox):
+    '''Loss for Mask R-CNN bounding box refinement.
 
     target_bbox: [batch, num_rois, (dy, dx, log(dh), log(dw))]
     target_class_ids: [batch, num_rois]. Integer class IDs.
     pred_bbox: [batch, num_rois, num_classes, (dy, dx, log(dh), log(dw))]
-    """
+    '''
     # Reshape to merge batch and roi dimensions for simplicity.
     target_class_ids = K.reshape(target_class_ids, (-1,))
     target_bbox = K.reshape(target_bbox, (-1, 4))
@@ -1217,9 +1246,9 @@ def mrcnn_bbox_loss_graph(target_bbox, target_class_ids, pred_bbox):
                     tf.constant(0.0))
     loss = K.mean(loss)
     return loss
+"""
 
 # Jika activation layer menggunakan sigmoid
-"""import tensorflow as tf
 
 def mrcnn_bbox_loss_graph(target_bbox, target_class_ids, pred_bbox):
     '''Loss for Mask R-CNN bounding box refinement.
@@ -1229,13 +1258,13 @@ def mrcnn_bbox_loss_graph(target_bbox, target_class_ids, pred_bbox):
     pred_bbox: [batch, num_rois, num_classes, (dy, dx, log(dh), log(dw))]
     '''
     # Reshape to merge batch and roi dimensions for simplicity.
-    target_class_ids = tf.reshape(target_class_ids, (-1,))
-    target_bbox = tf.reshape(target_bbox, (-1, 4))
-    pred_bbox = tf.reshape(pred_bbox, (-1, tf.shape(pred_bbox)[2], 4))
+    target_class_ids = K.reshape(target_class_ids, (-1,))
+    target_bbox = K.reshape(target_bbox, (-1, 4))
+    pred_bbox = K.reshape(pred_bbox, (-1, K.int_shape(pred_bbox)[2], 4))
 
     # Only positive ROIs contribute to the loss. And only
     # the right class_id of each ROI. Get their indices.
-    positive_roi_ix = tf.where(target_class_ids > 0)[:, 0]
+    positive_roi_ix = tf.compat.v1.where(target_class_ids > 0)[:, 0]
     positive_roi_class_ids = tf.cast(
         tf.gather(target_class_ids, positive_roi_ix), tf.int64)
     indices = tf.stack([positive_roi_ix, positive_roi_class_ids], axis=1)
@@ -1244,52 +1273,17 @@ def mrcnn_bbox_loss_graph(target_bbox, target_class_ids, pred_bbox):
     target_bbox = tf.gather(target_bbox, positive_roi_ix)
     pred_bbox = tf.gather_nd(pred_bbox, indices)
 
-    # Sigmoid Cross Entropy Loss
-    loss = tf.nn.sigmoid_cross_entropy_with_logits(labels=target_bbox, logits=pred_bbox)
-    loss = tf.reduce_mean(loss)
-    return loss
-"""
+    # Apply sigmoid activation
+    #pred_bbox = tf.nn.sigmoid(pred_bbox)
 
-# Jika activation layer menggunakan softmax
-def mrcnn_mask_loss_graph(target_masks, target_class_ids, pred_masks):
-    """Mask binary cross-entropy loss for the masks head.
-
-    target_masks: [batch, num_rois, height, width].
-        A float32 tensor of values 0 or 1. Uses zero padding to fill array.
-    target_class_ids: [batch, num_rois]. Integer class IDs. Zero padded.
-    pred_masks: [batch, proposals, height, width, num_classes] float32 tensor
-                with values from 0 to 1.
-    """
-    # Reshape for simplicity. Merge first two dimensions into one.
-    target_class_ids = K.reshape(target_class_ids, (-1,))
-    mask_shape = tf.shape(input=target_masks)
-    target_masks = K.reshape(target_masks, (-1, mask_shape[2], mask_shape[3]))
-    pred_shape = tf.shape(input=pred_masks)
-    pred_masks = K.reshape(pred_masks,
-                           (-1, pred_shape[2], pred_shape[3], pred_shape[4]))
-    # Permute predicted masks to [N, num_classes, height, width]
-    pred_masks = tf.transpose(a=pred_masks, perm=[0, 3, 1, 2])
-
-    # Only positive ROIs contribute to the loss. And only
-    # the class specific mask of each ROI.
-    positive_ix = tf.compat.v1.where(target_class_ids > 0)[:, 0]
-    positive_class_ids = tf.cast(
-        tf.gather(target_class_ids, positive_ix), tf.int64)
-    indices = tf.stack([positive_ix, positive_class_ids], axis=1)
-
-    # Gather the masks (predicted and true) that contribute to loss
-    y_true = tf.gather(target_masks, positive_ix)
-    y_pred = tf.gather_nd(pred_masks, indices)
-
-    # Compute binary cross entropy. If no positive ROIs, then return 0.
-    # shape: [batch, roi, num_classes]
-    loss = K.switch(tf.size(input=y_true) > 0,
-                    K.binary_crossentropy(target=y_true, output=y_pred),
+    # Smooth-L1 Loss
+    loss = K.switch(tf.size(input=target_bbox) > 0,
+                    smooth_l1_loss(y_true=target_bbox, y_pred=pred_bbox),
                     tf.constant(0.0))
     loss = K.mean(loss)
     return loss
 
-# Jika activation layer menggunakan sigmoid
+# Jika activation layer menggunakan softmax
 """def mrcnn_mask_loss_graph(target_masks, target_class_ids, pred_masks):
     '''Mask binary cross-entropy loss for the masks head.
 
@@ -1323,11 +1317,49 @@ def mrcnn_mask_loss_graph(target_masks, target_class_ids, pred_masks):
     # Compute binary cross entropy. If no positive ROIs, then return 0.
     # shape: [batch, roi, num_classes]
     loss = K.switch(tf.size(input=y_true) > 0,
-                    tf.nn.sigmoid_cross_entropy_with_logits(labels=y_true, logits=y_pred),
+                    K.binary_crossentropy(target=y_true, output=y_pred),
                     tf.constant(0.0))
     loss = K.mean(loss)
     return loss
 """
+# Jika activation layer menggunakan sigmoid
+def mrcnn_mask_loss_graph(target_masks, target_class_ids, pred_masks):
+    '''Mask binary cross-entropy loss for the masks head.
+
+    target_masks: [batch, num_rois, height, width].
+        A float32 tensor of values 0 or 1. Uses zero padding to fill array.
+    target_class_ids: [batch, num_rois]. Integer class IDs. Zero padded.
+    pred_masks: [batch, proposals, height, width, num_classes] float32 tensor
+                with values from 0 to 1.
+    '''
+    # Reshape for simplicity. Merge first two dimensions into one.
+    target_class_ids = K.reshape(target_class_ids, (-1,))
+    mask_shape = tf.shape(input=target_masks)
+    target_masks = K.reshape(target_masks, (-1, mask_shape[2], mask_shape[3]))
+    pred_shape = tf.shape(input=pred_masks)
+    pred_masks = K.reshape(pred_masks,
+                           (-1, pred_shape[2], pred_shape[3], pred_shape[4]))
+    # Permute predicted masks to [N, num_classes, height, width]
+    pred_masks = tf.transpose(a=pred_masks, perm=[0, 3, 1, 2])
+
+    # Only positive ROIs contribute to the loss. And only
+    # the class specific mask of each ROI.
+    positive_ix = tf.compat.v1.where(target_class_ids > 0)[:, 0]
+    positive_class_ids = tf.cast(
+        tf.gather(target_class_ids, positive_ix), tf.int64)
+    indices = tf.stack([positive_ix, positive_class_ids], axis=1)
+
+    # Gather the masks (predicted and true) that contribute to loss
+    y_true = tf.gather(target_masks, positive_ix)
+    y_pred = tf.gather_nd(pred_masks, indices)
+
+    # Compute binary cross entropy. If no positive ROIs, then return 0.
+    # shape: [batch, roi, num_classes]
+    loss = K.switch(tf.size(input=y_true) > 0,
+                    K.binary_crossentropy(target=y_true, output=y_pred),
+                    tf.constant(0.0))
+    loss = K.mean(loss)
+    return loss
 
 ############################################################
 #  Data Generator
@@ -2283,9 +2315,18 @@ class MaskRCNN(object):
         metrics. Then calls the Keras compile() function.
         """
         # Optimizer object
-        optimizer = keras.optimizers.SGD(
+        # Menggunakan SGD optimizer
+        """optimizer = keras.optimizers.SGD(
             lr=learning_rate, momentum=momentum,
             clipnorm=self.config.GRADIENT_CLIP_NORM)
+        """
+            
+        # Menggunakan Adam Optimizer
+        optimizer = keras.optimizers.Adam(
+            lr=learning_rate, beta_1=0.9, beta_2=0.999,
+            epsilon=1e-07, amsgrad=False,
+            clipnorm=self.config.GRADIENT_CLIP_NORM)
+
         # Add Losses
         loss_names = [
             "rpn_class_loss",  "rpn_bbox_loss",
@@ -2360,6 +2401,7 @@ class MaskRCNN(object):
                 log("{}{:20}   ({})".format(" " * indent, layer.name,
                                             layer.__class__.__name__))
 
+    # Save model file
     def set_log_dir(self, model_path=None):
         """Sets the model log directory and epoch counter.
 
@@ -2403,7 +2445,7 @@ class MaskRCNN(object):
         train_dataset, val_dataset: Training and validation Dataset objects.
         learning_rate: The learning rate to train with
         epochs: Number of training epochs. Note that previous training epochs
-                are considered to be done alreay, so this actually determines
+                are considered to be done already, so this actually determines
                 the epochs to train in total rather than in this particaular
                 call.
         layers: Allows selecting wich layers to train. It can be:
