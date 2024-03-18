@@ -31,7 +31,7 @@ from mrcnn import utils
 import sys
 mrcnn_dir = "/kaggle/input/data-mrcnn/mrcnn/mrcnn"
 sys.path.append(mrcnn_dir)
-#from parallel_model import ParallelModel
+from parallel_model import ParallelModel
 
 # Requires TensorFlow 2.0+
 from distutils.version import LooseVersion
