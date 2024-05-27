@@ -32,6 +32,9 @@ import matplotlib.pyplot as plt
 import matplotlib.font_manager as fm
 from matplotlib.collections import QuadMesh
 import seaborn as sn
+import skimage
+from skimage import transform
+from distutils.version import LooseVersion
 from sklearn.metrics import confusion_matrix
 from pandas import DataFrame
 from string import ascii_uppercase
@@ -938,7 +941,7 @@ def resize(image, output_shape, order=1, mode='constant', cval=0, clip=True,
     else:
         return skimage.transform.resize(
             image, output_shape,
-            order=order, mode=mode, cval=cval, clip=clip,
+            order=0, mode=mode, cval=cval, clip=clip,
             preserve_range=preserve_range)
 
 

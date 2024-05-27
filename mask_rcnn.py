@@ -5,8 +5,8 @@ import numpy as np
 class MaskRCNN:
     def __init__(self):
         # Loading Mask RCNN
-        self.net = cv2.dnn.readNetFromTensorflow("dnn/frozen_inference_graph_coco.pb",
-                                            "dnn/mask_rcnn_inception_v2_coco_2018_01_28.pbtxt")
+        self.net = cv2.dnn.readNetFromTensorflow("D:/Folder Ama/Tugas/University/Tugas Kelas/Skripsi/SpeedBumpDetection/dnn/frozen_inference_graph_coco.pb",
+                                            "D:/Folder Ama/Tugas/University/Tugas Kelas/Skripsi/SpeedBumpDetection/dnn/mask_rcnn_inception_v2_coco_2018_01_28.pbtxt")
         self.net.setPreferableBackend(cv2.dnn.DNN_BACKEND_CUDA)
         self.net.setPreferableTarget(cv2.dnn.DNN_TARGET_CUDA)
 
@@ -19,7 +19,7 @@ class MaskRCNN:
         self.mask_threshold = 0.3
 
         self.classes = []
-        with open("dnn/classes.txt", "r") as file_object:
+        with open("D:/Folder Ama/Tugas/University/Tugas Kelas/Skripsi/SpeedBumpDetection/dnn/classes.txt", "r") as file_object:
             for class_name in file_object.readlines():
                 class_name = class_name.strip()
                 self.classes.append(class_name)
@@ -51,6 +51,9 @@ class MaskRCNN:
 
         for i in range(detection_count):
             box = boxes[0, 0, i]
+            print("struktur box: ", box)
+            print("tipe box", type(box))
+            print("dimensi box", box.shape)
             class_id = box[1]
             score = box[2]
             color = self.colors[int(class_id)]
